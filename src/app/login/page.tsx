@@ -41,7 +41,7 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-semibold tracking-tight">C-Monitoring</h1>
-            <p className="text-sm text-white/80">Collection Monitoring System</p>
+            <p className="text-sm text-white/80">C-Monitoring System</p>
           </div>
         </div>
 

@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "C-Monitoring | Collection Monitoring System",
-  description: "Atlantic Grains Inc. Collection Monitoring System",
+  title: "C-Monitoring | C-Monitoring System",
+  description: "Atlantic Grains Inc. C-Monitoring System",
 };
 
 export const viewport: Viewport = {
