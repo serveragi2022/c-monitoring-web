@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import NotificationToasts from "./NotificationToasts";
 import { NotificationsProvider } from "@/context/NotificationsContext";
+import { useInactivityLogout } from "@/lib/use-inactivity-logout";
 import type { SessionUser } from "@/lib/types";
 
 export default function AppShellClient({
@@ -16,6 +17,9 @@ export default function AppShellClient({
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Auto-logout after 5 min of no interaction — also stops the
+  // NotificationsProvider poll below once the user is redirected out.
+  useInactivityLogout();
 
   return (
     <NotificationsProvider key={user.userId} userId={user.userId}>

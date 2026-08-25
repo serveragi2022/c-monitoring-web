@@ -10,6 +10,7 @@ export function proxy(req: NextRequest) {
     PUBLIC_PATHS.some((p) => pathname === p) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
+    pathname === "/manifest.webmanifest" ||
     /\.(png|jpg|jpeg|svg|ico|webp)$/.test(pathname)
   ) {
     return NextResponse.next();
