@@ -1,4 +1,4 @@
-# C-Monitoring — Web (Next.js) etest
+# C-Monitoring — Web (Next.js)
 
 A responsive web version of the collectionMS mobile app (Xamarin.Forms), rebuilt with
 Next.js 15 (App Router) + TypeScript + Tailwind. Works on desktop and mobile browsers.
