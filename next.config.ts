@@ -1,11 +1,8 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-  allowedDevOrigins: ['192.168.101.66']
+import type { NextConfig } from "next";
 
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  allowedDevOrigins: ['192.168.101.66'],
 };
 
-module.exports = nextConfig;
+export default nextConfig;
