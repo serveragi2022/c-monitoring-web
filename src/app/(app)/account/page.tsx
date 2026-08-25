@@ -56,7 +56,10 @@ export default function AccountPage() {
         <label className="mb-5 flex flex-col gap-1.5">
           <span className="text-sm font-medium text-slate-700">Password</span>
           <input
+            id="currentPassword"
+            name="currentPassword"
             type="password"
+            autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -68,6 +71,9 @@ export default function AccountPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">Username</span>
             <input
+              id="newUsername"
+              name="newUsername"
+              autoComplete="username"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -76,7 +82,10 @@ export default function AccountPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">Password</span>
             <input
+              id="newPassword"
+              name="newPassword"
               type="password"
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -85,7 +94,10 @@ export default function AccountPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-slate-700">Confirm Password</span>
             <input
+              id="confirmNewPassword"
+              name="confirmNewPassword"
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"

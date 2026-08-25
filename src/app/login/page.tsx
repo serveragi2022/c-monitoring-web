@@ -53,6 +53,8 @@ export default function LoginPage() {
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Username</span>
               <input
+                id="username"
+                name="username"
                 autoFocus
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -66,6 +68,8 @@ export default function LoginPage() {
               <span className="text-sm font-medium text-slate-700">Password</span>
               <div className="relative">
                 <input
+                  id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

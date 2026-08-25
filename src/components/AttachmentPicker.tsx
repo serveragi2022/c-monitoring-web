@@ -91,6 +91,8 @@ export default function AttachmentPicker({
       </span>
       <p className="-mt-1.5 text-xs text-slate-400">Photos only — converted to PDF automatically.</p>
       <textarea
+        id="attachmentDescription"
+        name="attachmentDescription"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Description"
@@ -99,6 +101,8 @@ export default function AttachmentPicker({
       />
       <input
         ref={inputRef}
+        id="attachmentFiles"
+        name="attachmentFiles"
         type="file"
         accept="image/*"
         multiple

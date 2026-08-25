@@ -361,6 +361,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("dateCollected") && (
           <Field label="Date Collected">
             <input
+              id="dateCollected"
+              name="dateCollected"
               type="date"
               value={dateCollected}
               onChange={(e) => setDateCollected(e.target.value)}
@@ -371,13 +373,21 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
 
         {config.paymentMode && (
           <Field label="Payment Mode">
-            <input readOnly value={config.paymentMode} className={`${inputClass} bg-slate-50 text-slate-500`} />
+            <input
+              id="paymentMode"
+              name="paymentMode"
+              readOnly
+              value={config.paymentMode}
+              className={`${inputClass} bg-slate-50 text-slate-500`}
+            />
           </Field>
         )}
 
         {has("collectedFrom") && (
           <Field label="Collected From" required error={errors.collectedFrom}>
             <input
+              id="collectedFrom"
+              name="collectedFrom"
               value={collectedFrom}
               onChange={(e) => setCollectedFrom(e.target.value)}
               className={inputClass}
@@ -388,6 +398,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("checkDate") && (
           <Field label="Check Date" required error={errors.checkDate}>
             <input
+              id="checkDate"
+              name="checkDate"
               type="date"
               value={checkDate}
               onChange={(e) => setCheckDate(e.target.value)}
@@ -398,7 +410,7 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
 
         {has("bank") && (
           <Field label="Bank" required error={errors.bank}>
-            <select value={bank} onChange={(e) => setBank(e.target.value)} className={inputClass}>
+            <select id="bank" name="bank" value={bank} onChange={(e) => setBank(e.target.value)} className={inputClass}>
               <option value="">Select bank</option>
               {banks.map((b) => (
                 <option key={b} value={b}>
@@ -413,6 +425,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
             )}
             {bankLoadError && (
               <input
+                id="bankManual"
+                name="bankManual"
                 value={bank}
                 onChange={(e) => setBank(e.target.value)}
                 placeholder="Type bank name"
@@ -424,13 +438,21 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
 
         {has("checkNo") && (
           <Field label="Check No" required error={errors.checkNo}>
-            <input value={checkNo} onChange={(e) => setCheckNo(e.target.value)} className={inputClass} />
+            <input
+              id="checkNo"
+              name="checkNo"
+              value={checkNo}
+              onChange={(e) => setCheckNo(e.target.value)}
+              className={inputClass}
+            />
           </Field>
         )}
 
         {has("amount") && (
           <Field label="Amount" required error={errors.amount}>
             <input
+              id="amount"
+              name="amount"
               type="number"
               inputMode="decimal"
               value={amount}
@@ -443,6 +465,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("amountCwtOnly") && (
           <Field label="CWT Total Amount" required error={errors.amountCwt}>
             <input
+              id="amountCwtOnly"
+              name="amountCwtOnly"
               type="number"
               inputMode="decimal"
               value={amountCwt}
@@ -460,6 +484,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
             {withCwt && (
               <Field label="CWT Total Amount" required error={errors.amountCwt}>
                 <input
+                  id="amountCwt"
+                  name="amountCwt"
                   type="number"
                   inputMode="decimal"
                   value={amountCwt}
@@ -475,6 +501,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
           <Field label="Principal Account" required error={errors.principalAccount}>
             <div className="relative">
               <input
+                id="principalAccount"
+                name="principalAccount"
                 value={principalAccount}
                 onChange={(e) => setPrincipalAccount(e.target.value)}
                 onFocus={() => setShowPaSuggestions(true)}
@@ -509,6 +537,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("cmTotalAmount") && (
           <Field label="CM Total Amount" required error={errors.cmTotalAmount}>
             <input
+              id="cmTotalAmount"
+              name="cmTotalAmount"
               type="number"
               inputMode="decimal"
               value={cmTotalAmount}
@@ -521,6 +551,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("othersTotalAmount") && (
           <Field label="Others Amount (Var/Diff)" required error={errors.othersTotalAmount}>
             <input
+              id="othersTotalAmount"
+              name="othersTotalAmount"
               type="number"
               inputMode="decimal"
               value={othersTotalAmount}
@@ -533,6 +565,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         {has("paymentApplication") && (
           <Field label="Payment Application (SI / SOA)" required error={errors.paymentApplication}>
             <textarea
+              id="paymentApplication"
+              name="paymentApplication"
               value={paymentApplication}
               onChange={(e) => setPaymentApplication(e.target.value)}
               rows={2}
@@ -572,6 +606,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
               <>
                 <Field label="Others Amount (Var/Diff)" required error={errors.varianceAmount}>
                   <input
+                    id="varianceAmount"
+                    name="varianceAmount"
                     type="number"
                     inputMode="decimal"
                     value={varianceAmount}
@@ -581,6 +617,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
                 </Field>
                 <Field label="Reasons of Others Amount (Var/Diff)" required error={errors.varianceReason}>
                   <textarea
+                    id="varianceReason"
+                    name="varianceReason"
                     value={varianceReason}
                     onChange={(e) => setVarianceReason(e.target.value)}
                     rows={2}
@@ -594,7 +632,7 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
 
         {has("location") && (
           <Field label="Location (Remit)" required error={errors.location}>
-            <select value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass}>
+            <select id="location" name="location" value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass}>
               <option value="">Select Location</option>
               {LOCATIONS.map((l) => (
                 <option key={l} value={l}>
@@ -606,7 +644,14 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         )}
 
         <Field label="Remarks" required error={errors.remarks}>
-          <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={2} className={inputClass} />
+          <textarea
+            id="remarks"
+            name="remarks"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={2}
+            className={inputClass}
+          />
         </Field>
 
         <AttachmentPicker
@@ -629,8 +674,11 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
       <Modal open={showConfirm} onClose={() => setShowConfirm(false)} title="Verification">
         <p className="mb-3 text-sm text-slate-600">Enter your password to confirm this submission.</p>
         <input
+          id="confirmSubmitPassword"
+          name="confirmSubmitPassword"
           type="password"
           autoFocus
+          autoComplete="current-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           className={`${inputClass} w-full`}
