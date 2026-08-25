@@ -1,6 +1,5 @@
 import "server-only";
 import { Storage } from "@google-cloud/storage";
-import { randomUUID } from "crypto";
 
 // The service account key is provided as a base64-encoded JSON string (so it can
 // live in a single-line env var on Vercel) rather than as a key file on disk.

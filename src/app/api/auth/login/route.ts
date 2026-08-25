@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { collectionUrl, authHeader } from "@/lib/backend-config";
 import { encryptPassword } from "@/lib/collection-crypto";
 import { setSessionPayload } from "@/lib/session";
+import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+  const rateLimit = checkLoginRateLimit(ip);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { message: "Too many login attempts. Please try again in a few minutes." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const username = body?.username?.toString().trim();
   const password = body?.password?.toString() ?? "";
@@ -59,6 +70,7 @@ export async function POST(req: NextRequest) {
   };
 
   await setSessionPayload(payload);
+  resetLoginRateLimit(ip);
 
   // Best-effort access history log, mirroring GlobalVariable.AccessHistory("Login").
   fetch(collectionUrl("collection/accesshistory"), {

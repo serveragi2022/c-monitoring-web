@@ -1,13 +1,48 @@
 "use client";
 
-import { useRef } from "react";
-import { Paperclip, X, FileImage } from "lucide-react";
+import { useRef, useState } from "react";
+import { Paperclip, X, FileImage, Loader2 } from "lucide-react";
 
 export interface AttachmentDraft {
   id: string;
   file: File;
   description: string;
   previewUrl: string;
+}
+
+const MAX_DIMENSION = 1600; // px, longest side
+const JPEG_QUALITY = 0.8;
+
+/** Downscales + re-encodes an image client-side before upload — cuts payload size
+ *  substantially for full-resolution phone-camera photos, which matters most on
+ *  weak signal inside a mill/warehouse. Falls back to the original file if
+ *  compression fails or isn't supported (e.g. non-image files). */
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+    );
+    if (!blob || blob.size >= file.size) return file; // keep original if compression didn't help
+
+    const newName = file.name.replace(/\.\w+$/, "") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+  } catch {
+    return file; // compression unsupported/failed — proceed with the original
+  }
 }
 
 export default function AttachmentPicker({
@@ -24,18 +59,25 @@ export default function AttachmentPicker({
   required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [compressing, setCompressing] = useState(false);
 
-  function onFilesSelected(files: FileList | null) {
+  async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const additions: AttachmentDraft[] = Array.from(files).map((file) => ({
-      id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
-      file,
-      description: description || file.name,
-      previewUrl: URL.createObjectURL(file),
-    }));
-    setAttachments([...attachments, ...additions]);
-    setDescription("");
-    if (inputRef.current) inputRef.current.value = "";
+    setCompressing(true);
+    try {
+      const compressed = await Promise.all(Array.from(files).map(compressImage));
+      const additions: AttachmentDraft[] = compressed.map((file) => ({
+        id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
+        file,
+        description: description || file.name,
+        previewUrl: URL.createObjectURL(file),
+      }));
+      setAttachments([...attachments, ...additions]);
+      setDescription("");
+      if (inputRef.current) inputRef.current.value = "";
+    } finally {
+      setCompressing(false);
+    }
   }
 
   function removeAttachment(id: string) {
@@ -67,9 +109,18 @@ export default function AttachmentPicker({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex w-fit items-center gap-2 rounded-lg border border-brand/30 bg-brand-light px-3.5 py-2 text-sm font-medium text-brand transition hover:bg-brand/10"
+        disabled={compressing}
+        className="flex w-fit items-center gap-2 rounded-lg border border-brand/30 bg-brand-light px-3.5 py-2 text-sm font-medium text-brand transition hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <Paperclip className="h-4 w-4" /> Attach file
+        {compressing ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Processing...
+          </>
+        ) : (
+          <>
+            <Paperclip className="h-4 w-4" /> Attach file
+          </>
+        )}
       </button>
 
       {attachments.length > 0 && (

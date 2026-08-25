@@ -25,6 +25,10 @@ interface NotificationsContextValue {
   /** Bumps whenever a new transaction is detected — components can watch this
    *  to know it's worth refetching things like the recent-transactions list. */
   lastArrivalAt: number;
+  /** Optimistically zero the badge count — call this right after the user has
+   *  viewed/acknowledged notifications, instead of waiting up to 30s for the
+   *  next poll to reflect it. */
+  clearCount: () => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -54,6 +58,10 @@ export function NotificationsProvider({
 
   const dismissToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const clearCount = useCallback(() => {
+    setCount(0);
   }, []);
 
   useEffect(() => {
@@ -104,7 +112,7 @@ export function NotificationsProvider({
   }, [userId]);
 
   return (
-    <NotificationsContext.Provider value={{ count, toasts, dismissToast, lastArrivalAt }}>
+    <NotificationsContext.Provider value={{ count, toasts, dismissToast, lastArrivalAt, clearCount }}>
       {children}
     </NotificationsContext.Provider>
   );

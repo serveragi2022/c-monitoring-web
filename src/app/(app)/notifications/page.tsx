@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BellRing, Loader2 } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { useNotificationsContext } from "@/context/NotificationsContext";
 
 interface Notif {
   transId: number;
@@ -14,6 +15,7 @@ export default function NotificationsPage() {
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
   const idsRef = useRef<number[]>([]);
+  const { clearCount } = useNotificationsContext();
 
   useEffect(() => {
     let cancelled = false;
@@ -33,10 +35,13 @@ export default function NotificationsPage() {
     return () => {
       cancelled = true;
       if (idsRef.current.length > 0) {
+        // Zero the badge right away rather than waiting for the next 30s poll —
+        // the backend mark-as-viewed call below is what makes it durable.
+        clearCount();
         api.markNotificationsViewed(idsRef.current).catch(() => {});
       }
     };
-  }, []);
+  }, [clearCount]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">

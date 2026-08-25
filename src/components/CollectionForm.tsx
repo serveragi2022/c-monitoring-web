@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, RotateCcw, X } from "lucide-react";
 import type { CollectionTypeConfig } from "@/lib/collection-config";
 import { LOCATIONS, getCollectionTypeByRoute } from "@/lib/collection-config";
 import { api } from "@/lib/api-client";
+import { loadDraft, saveDraft, clearDraft } from "@/lib/collection-draft";
 import { Field, YesNo, inputClass } from "./form-fields";
 import AttachmentPicker, { type AttachmentDraft } from "./AttachmentPicker";
 import Modal from "./Modal";
@@ -20,6 +21,14 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
   const router = useRouter();
   const config = getCollectionTypeByRoute(typeRoute) as CollectionTypeConfig;
   const has = (f: string) => config.fields.includes(f as never);
+
+  // Draft is intentionally NOT read here in a useState initializer. Reading
+  // localStorage during render runs on both the server (SSR, where it's
+  // unavailable) and the client (during hydration, where it IS available),
+  // so the two renders would disagree and React would throw a hydration
+  // mismatch. Instead every field below starts at a plain, SSR-safe default,
+  // and the draft (if any) is applied in a useEffect after mount — see below.
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const [dateCollected, setDateCollected] = useState(todayInputValue());
   const [collectedFrom, setCollectedFrom] = useState("");
@@ -55,6 +64,49 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ transRef: string; dateCreated: string } | null>(null);
 
+  // Restore any saved draft — must happen in an effect (i.e. strictly after
+  // hydration completes), not in a useState initializer, or the client's
+  // first render diverges from the server-rendered HTML. Attachments and the
+  // confirm password are never persisted, since File objects can't survive a
+  // reload without IndexedDB.
+  useEffect(() => {
+    const draft = loadDraft(config.key);
+    if (!draft) return;
+
+    /* eslint-disable react-hooks/set-state-in-effect --
+       Intentional: this effect bootstraps form state from localStorage once
+       on mount. It can't run during render (a useState initializer) because
+       localStorage is unavailable during SSR but available on the client
+       during hydration — reading it there would make the server- and
+       client-rendered output diverge and trigger a hydration mismatch. This
+       is the "sync from an external store after mount" case, not derivable
+       state. */
+    if (typeof draft.dateCollected === "string") setDateCollected(draft.dateCollected);
+    if (typeof draft.collectedFrom === "string") setCollectedFrom(draft.collectedFrom);
+    if (typeof draft.checkDate === "string") setCheckDate(draft.checkDate);
+    if (typeof draft.bank === "string") setBank(draft.bank);
+    if (typeof draft.checkNo === "string") setCheckNo(draft.checkNo);
+    if (typeof draft.amount === "string") setAmount(draft.amount);
+    if (typeof draft.location === "string") setLocation(draft.location);
+    if (typeof draft.withCwt === "boolean") setWithCwt(draft.withCwt);
+    if (typeof draft.amountCwt === "string") setAmountCwt(draft.amountCwt);
+    if (typeof draft.wvd === "boolean") setWvd(draft.wvd);
+    if (draft.vdpp === true || draft.vdpp === false) setVdpp(draft.vdpp);
+    if (typeof draft.varianceAmount === "string") setVarianceAmount(draft.varianceAmount);
+    if (typeof draft.varianceReason === "string") setVarianceReason(draft.varianceReason);
+    if (typeof draft.paymentApplication === "string")
+      setPaymentApplication(draft.paymentApplication);
+    if (typeof draft.principalAccount === "string") setPrincipalAccount(draft.principalAccount);
+    if (typeof draft.cmTotalAmount === "string") setCmTotalAmount(draft.cmTotalAmount);
+    if (typeof draft.othersTotalAmount === "string")
+      setOthersTotalAmount(draft.othersTotalAmount);
+    if (typeof draft.withItemReturn === "boolean") setWithItemReturn(draft.withItemReturn);
+    if (typeof draft.remarks === "string") setRemarks(draft.remarks);
+
+    setDraftRestored(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [config.key]);
+
   useEffect(() => {
     if (has("bank")) {
       api
@@ -86,6 +138,62 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [principalAccount]);
+
+  // Debounced autosave — keeps the draft current as the user types, so a
+  // dropped connection or accidental tab close doesn't lose what's filled in.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      saveDraft(config.key, {
+        dateCollected,
+        collectedFrom,
+        checkDate,
+        bank,
+        checkNo,
+        amount,
+        location,
+        withCwt,
+        amountCwt,
+        wvd,
+        vdpp,
+        varianceAmount,
+        varianceReason,
+        paymentApplication,
+        principalAccount,
+        cmTotalAmount,
+        othersTotalAmount,
+        withItemReturn,
+        remarks,
+      });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [
+    config.key,
+    dateCollected,
+    collectedFrom,
+    checkDate,
+    bank,
+    checkNo,
+    amount,
+    location,
+    withCwt,
+    amountCwt,
+    wvd,
+    vdpp,
+    varianceAmount,
+    varianceReason,
+    paymentApplication,
+    principalAccount,
+    cmTotalAmount,
+    othersTotalAmount,
+    withItemReturn,
+    remarks,
+  ]);
+
+  function discardDraft() {
+    clearDraft(config.key);
+    resetForm();
+    setDraftRestored(false);
+  }
 
   const requiresAttachment = true;
 
@@ -201,9 +309,17 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
       const res = await api.submitCollection(form);
       setShowConfirm(false);
       setSuccess(res);
+      clearDraft(config.key);
       resetForm();
+      setDraftRestored(false);
     } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : "Submission failed.");
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setConfirmError(
+          "You appear to be offline. Your entries are saved as a draft — reconnect and try again."
+        );
+      } else {
+        setConfirmError(err instanceof Error ? err.message : "Submission failed.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -217,6 +333,26 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         <h1 className="text-lg font-semibold text-slate-900">{config.title}</h1>
         <p className="mt-1 text-sm text-slate-500">{config.description}</p>
       </div>
+
+      {draftRestored && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-amber-800">Unsaved draft restored</p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              We brought back what you last typed. You&apos;ll need to re-attach your photo.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="shrink-0 rounded-lg p-1 text-amber-600 hover:bg-amber-100"
+            aria-label="Discard draft"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <form
         onSubmit={onSubmitClick}

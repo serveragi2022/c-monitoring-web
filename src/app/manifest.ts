@@ -6,7 +6,7 @@ import type { MetadataRoute } from "next";
 // the URL in Chrome every time.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "C-Monitoring — C-Monitoring System",
+    name: "C-Monitoring System",
     short_name: "C-Monitoring",
     description: "Atlantic Grains Inc. C-Monitoring System",
     start_url: "/",
