@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const COOKIE_NAME = "cms_session";
 const PUBLIC_PATHS = ["/login", "/api/auth/login"];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (
