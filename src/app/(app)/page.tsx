@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { COLLECTION_TYPES } from "@/lib/collection-config";
 import { getSessionUser } from "@/lib/session";
+import RecentTransactions from "@/components/RecentTransactions";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
@@ -10,7 +11,7 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 rounded-2xl bg-gradient-to-br from-brand-dark to-brand p-6 text-white sm:p-8">
         <h1 className="text-xl font-semibold sm:text-2xl">
-          C-Monitoring System
+          Collection Monitoring System
         </h1>
         <p className="mt-1 max-w-lg text-sm text-white/80">
           Hi {user?.firstname ?? "there"}, pick a collection type below to record a new
@@ -44,6 +45,8 @@ export default async function DashboardPage() {
           );
         })}
       </div>
+
+      <RecentTransactions />
     </div>
   );
 }

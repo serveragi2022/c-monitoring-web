@@ -1,80 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { collectionUrl, orderingUrl, authHeader } from "@/lib/backend-config";
+import { collectionUrl, authHeader } from "@/lib/backend-config";
 import { getSessionPayload } from "@/lib/session";
 import { getCollectionTypeByRoute } from "@/lib/collection-config";
 import type { CollectionTypeKey } from "@/lib/types";
-import { convertImageToPdf } from "@/lib/image-to-pdf";
-import { uploadAttachmentToGCS } from "@/lib/gcs";
 
 function str(v: FormDataEntryValue | null): string | undefined {
   const s = v?.toString().trim();
   return s ? s : undefined;
 }
 
-// Mirrors the backend's own convention (see the C# side):
-//   Guid newGuid = Guid.NewGuid();
-//   string guidString = newGuid.ToString() + DateTime.Now.ToString("MM-dd-yyyy-HH-mm");
-// randomUUID() already matches .NET's default Guid.ToString() format (lowercase,
-// hyphenated), so we just need to append the same date suffix, un-separated.
-//
-// IMPORTANT: `DateTime.Now` on your backend is presumably Philippine time (server's local
-// clock). Vercel's serverless functions run in UTC regardless of region, so we can't just
-// use the Node server's local time here — it has to be explicitly formatted in Asia/Manila
-// to match, no matter where Vercel actually executes the function.
-const PH_TIME_ZONE = "Asia/Manila";
-
-function buildAttachmentGuid(): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: PH_TIME_ZONE,
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  // hour12: false can render midnight as "24" in some ICU builds — normalize to "00".
-  const hour = get("hour") === "24" ? "00" : get("hour");
-
-  const dateSuffix = `${get("month")}-${get("day")}-${get("year")}-${hour}-${get("minute")}`;
-  return randomUUID() + dateSuffix;
-}
-
-// Fetches the authoritative bank list from the backend and confirms `bank` is one of
-// them (case-insensitive). Never trust the client's dropdown alone — the same check the
-// UI does client-side is repeated here so nothing gets encoded with an off-list bank.
-async function isKnownBank(bank: string): Promise<boolean> {
-  try {
-    const res = await fetch(collectionUrl("collection/banklist"), {
-      headers: { Authorization: authHeader() },
-      cache: "no-store",
-    });
-    if (!res.ok) return false;
-    const raw: Array<{ bank?: string; Bank?: string }> = await res.json().catch(() => []);
-    const names = raw.map((b) => (b.bank ?? b.Bank ?? "").trim().toLowerCase()).filter(Boolean);
-    return names.includes(bank.trim().toLowerCase());
-  } catch {
-    return false;
-  }
-}
-
-// Same idea for principal accounts (ordering API), used by the CM / Others collection types.
-async function isKnownPrincipalAccount(principalAccount: string): Promise<boolean> {
-  try {
-    const res = await fetch(orderingUrl("principalaccount/filter2"), {
-      headers: { Authorization: authHeader() },
-      cache: "no-store",
-    });
-    if (!res.ok) return false;
-    const raw: Array<{ principal_account?: string }> = await res.json().catch(() => []);
-    const names = raw.map((r) => (r.principal_account ?? "").trim().toLowerCase()).filter(Boolean);
-    return names.includes(principalAccount.trim().toLowerCase());
-  } catch {
-    return false;
-  }
+function extFromMime(mime: string): string {
+  if (mime.includes("png")) return ".png";
+  if (mime.includes("webp")) return ".webp";
+  if (mime.includes("heic")) return ".heic";
+  return ".jpg";
 }
 
 function endpointFor(typeKey: CollectionTypeKey): string {
@@ -114,56 +53,6 @@ export async function POST(req: NextRequest) {
 
   if (files.length === 0) {
     return NextResponse.json({ message: "Attachment is required." }, { status: 400 });
-  }
-
-  // Bank must be one of the bank list options — never allow an off-list value to be encoded,
-  // regardless of what the client sent.
-  const bankValue = str(form.get("bank"));
-  if (bankValue) {
-    const ok = await isKnownBank(bankValue);
-    if (!ok) {
-      return NextResponse.json(
-        { message: `"${bankValue}" is not a recognized bank. Please pick one from the list.` },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Same restriction for Principal Account (CM / Others types).
-  const principalAccountValue = str(form.get("principalAccount"));
-  if (principalAccountValue) {
-    const ok = await isKnownPrincipalAccount(principalAccountValue);
-    if (!ok) {
-      return NextResponse.json(
-        {
-          message: `"${principalAccountValue}" is not a recognized principal account. Please pick one from the list.`,
-        },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Convert every picture attachment to a single-page PDF, then upload all of them into a
-  // single per-submission GCS folder (named after a fresh GUID) instead of forwarding the
-  // raw bytes through this API to the backend. The backend only receives that folder's GUID
-  // (see AttachmentGuid below) and is expected to know how to look the folder up in the bucket.
-  const attachmentGuid = buildAttachmentGuid();
-  try {
-    await Promise.all(
-      files.map(async (file, i) => {
-        const description = descriptions[i] || file.name;
-        const inputBuffer = Buffer.from(await file.arrayBuffer());
-        const pdfBuffer = await convertImageToPdf(inputBuffer);
-        const safeName = description.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "attachment";
-        await uploadAttachmentToGCS(pdfBuffer, `${safeName}.pdf`, "application/pdf", attachmentGuid);
-      })
-    );
-  } catch (err) {
-    console.error("[/api/collections] attachment conversion/upload failed:", err);
-    return NextResponse.json(
-      { message: "Unable to process one or more attachments. Please try again." },
-      { status: 502 }
-    );
   }
 
   const out = new FormData();
@@ -246,10 +135,12 @@ export async function POST(req: NextRequest) {
     out.set("PaymentApplication", str(form.get("paymentApplication")) ?? "");
   }
 
-  // NOTE: field name assumption — the backend previously received raw multipart `files`.
-  // It now receives just the GCS folder GUID that holds the converted PDFs for this
-  // submission. Adjust the field name here if the backend expects a different key.
-  out.set("AttachmentGuid", attachmentGuid);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const description = descriptions[i] || file.name;
+    const safeName = description.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "attachment";
+    out.append("files", file, `${safeName}${extFromMime(file.type)}`);
+  }
 
   let res: Response;
   try {

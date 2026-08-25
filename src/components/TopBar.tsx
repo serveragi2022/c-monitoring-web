@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, Bell, LogOut, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { subscribeNotifications } from "@/lib/notifications-client";
+import { useNotificationsContext } from "@/context/NotificationsContext";
 import type { SessionUser } from "@/lib/types";
 
 export default function TopBar({
@@ -16,16 +16,11 @@ export default function TopBar({
   onMenuClick: () => void;
 }) {
   const router = useRouter();
-  const [count, setCount] = useState(0);
+  // Single shared poller (NotificationsProvider) — no per-component interval,
+  // so the badge count is never fetched more than once per cycle.
+  const { count } = useNotificationsContext();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Shared store: one poller for the whole app, paused while the tab is hidden, cached
-    // between mounts — this component no longer fetches on its own.
-    const unsubscribe = subscribeNotifications((notifs) => setCount(notifs.length));
-    return unsubscribe;
-  }, []);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {

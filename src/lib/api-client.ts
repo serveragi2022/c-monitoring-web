@@ -39,6 +39,11 @@ export const api = {
       handle<{ notifications: { transId: number; transRef: string; dateCreated: string }[] }>(r)
     ),
 
+  getRecentTransactions: (take = 20) =>
+    fetch(`/api/transactions?take=${take}`).then((r) =>
+      handle<{ transactions: { transId: number; transRef: string; dateCreated: string }[] }>(r)
+    ),
+
   markNotificationsViewed: (transIds: number[]) =>
     fetch("/api/notifications", {
       method: "PUT",
