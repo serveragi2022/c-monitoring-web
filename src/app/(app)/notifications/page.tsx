@@ -2,13 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BellRing, Loader2 } from "lucide-react";
-import { api } from "@/lib/api-client";
-
-interface Notif {
-  transId: number;
-  transRef: string;
-  dateCreated: string;
-}
+import { subscribeNotifications, markNotificationsViewed, type Notif } from "@/lib/notifications-client";
 
 export default function NotificationsPage() {
   const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -16,24 +10,18 @@ export default function NotificationsPage() {
   const idsRef = useRef<number[]>([]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const { notifications } = await api.getNotifications();
-        if (!cancelled) {
-          setNotifs(notifications);
-          idsRef.current = notifications.map((n) => n.transId);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
+    // Reuses the same shared/cached store as the topbar bell — landing on this page right
+    // after the bell just polled won't trigger a second request.
+    const unsubscribe = subscribeNotifications((notifications) => {
+      setNotifs(notifications);
+      idsRef.current = notifications.map((n) => n.transId);
+      setLoading(false);
+    });
 
     return () => {
-      cancelled = true;
+      unsubscribe();
       if (idsRef.current.length > 0) {
-        api.markNotificationsViewed(idsRef.current).catch(() => {});
+        markNotificationsViewed(idsRef.current).catch(() => {});
       }
     };
   }, []);

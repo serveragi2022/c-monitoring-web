@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
       headers: { Authorization: authHeader() },
       cache: "no-store",
     });
-    console.log(`[/api/principal-accounts] principalaccount/filter2 response:`, res);
   } catch (err) {
     console.error("[/api/principal-accounts] fetch to principalaccount/filter2 failed:", err);
     return NextResponse.json(
@@ -35,9 +34,11 @@ export async function GET(req: NextRequest) {
   const raw: Array<{ principal_account?: string }> = await res.json().catch(() => []);
   let accounts = raw.map((r) => r.principal_account).filter((v): v is string => Boolean(v));
 
+  // Empty `q` means "give me the full list" — the client uses this once to build its
+  // allow-list for validation, so it must not be truncated the way a live search would be.
   if (q) {
-    accounts = accounts.filter((a) => a.toLowerCase().includes(q));
+    accounts = accounts.filter((a) => a.toLowerCase().includes(q)).slice(0, 30);
   }
 
-  return NextResponse.json({ principalAccounts: accounts.slice(0, 30) });
+  return NextResponse.json({ principalAccounts: accounts });
 }

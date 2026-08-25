@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, Bell, LogOut, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { subscribeNotifications } from "@/lib/notifications-client";
 import type { SessionUser } from "@/lib/types";
 
 export default function TopBar({
@@ -20,21 +21,10 @@ export default function TopBar({
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const { notifications } = await api.getNotifications();
-        if (!cancelled) setCount(notifications.length);
-      } catch {
-        // ignore
-      }
-    }
-    load();
-    const id = setInterval(load, 20000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    // Shared store: one poller for the whole app, paused while the tab is hidden, cached
+    // between mounts — this component no longer fetches on its own.
+    const unsubscribe = subscribeNotifications((notifs) => setCount(notifs.length));
+    return unsubscribe;
   }, []);
 
   useEffect(() => {

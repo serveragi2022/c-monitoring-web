@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2 } from "lucide-react";
 import type { CollectionTypeConfig } from "@/lib/collection-config";
 import { LOCATIONS, getCollectionTypeByRoute } from "@/lib/collection-config";
 import { api } from "@/lib/api-client";
+import { refreshNotifications } from "@/lib/notifications-client";
 import { Field, YesNo, inputClass } from "./form-fields";
 import AttachmentPicker, { type AttachmentDraft } from "./AttachmentPicker";
 import Modal from "./Modal";
@@ -38,7 +39,6 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
   const [varianceReason, setVarianceReason] = useState("");
   const [paymentApplication, setPaymentApplication] = useState("");
   const [principalAccount, setPrincipalAccount] = useState("");
-  const [paSuggestions, setPaSuggestions] = useState<string[]>([]);
   const [paLoadError, setPaLoadError] = useState<string | null>(null);
   const [showPaSuggestions, setShowPaSuggestions] = useState(false);
   const [cmTotalAmount, setCmTotalAmount] = useState("");
@@ -70,22 +70,25 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.key]);
 
+  // Fetch the full principal-account list once (instead of re-querying on every keystroke).
+  // It doubles as the allow-list used to validate the typed value on submit.
+  const [paList, setPaList] = useState<string[]>([]);
   useEffect(() => {
     if (!has("principalAccount")) return;
-    const t = setTimeout(() => {
-      api
-        .getPrincipalAccounts(principalAccount)
-        .then(({ principalAccounts }) => {
-          setPaSuggestions(principalAccounts);
-          setPaLoadError(null);
-        })
-        .catch((err) => {
-          setPaLoadError(err instanceof Error ? err.message : "Unable to load principal accounts.");
-        });
-    }, 200);
-    return () => clearTimeout(t);
+    api
+      .getPrincipalAccounts("")
+      .then(({ principalAccounts }) => {
+        setPaList(principalAccounts);
+        setPaLoadError(null);
+      })
+      .catch((err) => {
+        setPaLoadError(err instanceof Error ? err.message : "Unable to load principal accounts.");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [principalAccount]);
+  }, [config.key]);
+
+  const paQuery = principalAccount.trim().toLowerCase();
+  const paSuggestions = paQuery ? paList.filter((p) => p.toLowerCase().includes(paQuery)) : paList;
 
   const requiresAttachment = true;
 
@@ -121,6 +124,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
       e.collectedFrom = "Collected From is required";
     if (has("checkDate") && !checkDate) e.checkDate = "Check Date is required";
     if (has("bank") && !bank) e.bank = "Bank is required";
+    if (has("bank") && bank && banks.length > 0 && !banks.includes(bank))
+      e.bank = "Select a bank from the list.";
     if (has("checkNo") && !checkNo.trim()) e.checkNo = "Check No is required";
     if (has("amount") && !amount) e.amount = "Amount is required";
     if (has("location") && !location) e.location = "Location (Remit) is required";
@@ -130,6 +135,8 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
       e.paymentApplication = "Payment Application is required";
     if (has("principalAccount") && !principalAccount.trim())
       e.principalAccount = "Principal Account is required";
+    if (has("principalAccount") && principalAccount.trim() && paList.length > 0 && !paList.includes(principalAccount))
+      e.principalAccount = "Select a principal account from the list.";
     if (has("cmTotalAmount") && !cmTotalAmount) e.cmTotalAmount = "CM Total Amount is required";
     if (has("othersTotalAmount") && !othersTotalAmount)
       e.othersTotalAmount = "Others Amount is required";
@@ -202,6 +209,7 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
       setShowConfirm(false);
       setSuccess(res);
       resetForm();
+      refreshNotifications();
     } catch (err) {
       setConfirmError(err instanceof Error ? err.message : "Submission failed.");
     } finally {
@@ -262,7 +270,12 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
 
         {has("bank") && (
           <Field label="Bank" required error={errors.bank}>
-            <select value={bank} onChange={(e) => setBank(e.target.value)} className={inputClass}>
+            <select
+              value={bank}
+              onChange={(e) => setBank(e.target.value)}
+              className={inputClass}
+              disabled={!!bankLoadError}
+            >
               <option value="">Select bank</option>
               {banks.map((b) => (
                 <option key={b} value={b}>
@@ -270,18 +283,29 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
                 </option>
               ))}
             </select>
+            <p className="text-xs text-slate-400">Only banks from this list can be selected.</p>
             {bankLoadError && (
-              <p className="text-xs text-red-600">
-                {bankLoadError} — you can still type a bank manually below.
-              </p>
-            )}
-            {bankLoadError && (
-              <input
-                value={bank}
-                onChange={(e) => setBank(e.target.value)}
-                placeholder="Type bank name"
-                className={inputClass}
-              />
+              <div className="flex items-center gap-2 text-xs text-red-600">
+                <span>{bankLoadError}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBankLoadError(null);
+                    api
+                      .getBanks()
+                      .then(({ banks }) => {
+                        setBanks(banks.map((b) => b.bank));
+                        setBankLoadError(null);
+                      })
+                      .catch((err) => {
+                        setBankLoadError(err instanceof Error ? err.message : "Unable to load bank list.");
+                      });
+                  }}
+                  className="font-medium text-brand underline"
+                >
+                  Retry
+                </button>
+              </div>
             )}
           </Field>
         )}
@@ -364,8 +388,11 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
             </div>
             {paLoadError && (
               <p className="text-xs text-red-600">
-                {paLoadError} — you can still type the account name manually.
+                {paLoadError} — please retry before submitting, only listed accounts are allowed.
               </p>
+            )}
+            {!paLoadError && (
+              <p className="mt-1 text-xs text-slate-400">Only accounts from this list can be selected.</p>
             )}
           </Field>
         )}

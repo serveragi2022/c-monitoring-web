@@ -7,11 +7,11 @@ export const ORDERING_API_BASE =
   process.env.ORDERING_API_BASE_URL || "https://agi-ordering.atlanticgrains.com/api/";
 
 // The mobile app sends a literal, unchanged Basic auth header: base64("Username:Password").
-const BASIC_AUTH_VALUE = process.env.BACKEND_BASIC_AUTH || "Username:Password";
+const BACKEND_BASIC_AUTH = process.env.BACKEND_BASIC_AUTH || "Username:Password";
 
 
 export function authHeader(): string {
-  return "Basic " + BASIC_AUTH_VALUE;
+  return "Basic " + BACKEND_BASIC_AUTH;
 }
 
 export function collectionUrl(path: string): string {
