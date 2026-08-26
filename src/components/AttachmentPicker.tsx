@@ -1,13 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Paperclip, X, FileImage, Loader2, Pencil, Check } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Paperclip, X, FileImage, Loader2, Pencil, ChevronRight, Check } from "lucide-react";
+import Modal from "./Modal";
 
 export interface AttachmentDraft {
   id: string;
   file: File;
   description: string;
   previewUrl: string;
+  /** True once the user has explicitly entered a name for this photo. Phone cameras
+   *  give files generic, meaningless names (e.g. "IMG_20260826_143022.jpg" or a random
+   *  blob name) — this flag is what the form actually validates against, not just
+   *  "description is non-empty", so a photo can't sneak through with its raw phone
+   *  filename as the name. */
+  named: boolean;
 }
 
 const MAX_DIMENSION = 1600; // px, longest side
@@ -45,17 +52,25 @@ async function compressImage(file: File): Promise<File> {
   }
 }
 
+/** If `base` is already used (case-insensitively) among `existing` names, returns
+ *  "base 2", "base 3", etc. — whichever suffix isn't taken yet. Otherwise returns
+ *  `base` unchanged. Keeps attachment names distinct whether the user typed the same
+ *  name manually one photo at a time, or used "apply to all remaining". */
+function nextAvailableName(base: string, existing: string[]): string {
+  const taken = new Set(existing.map((n) => n.trim().toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  let i = 2;
+  while (taken.has(`${base} ${i}`.toLowerCase())) i++;
+  return `${base} ${i}`;
+}
+
 export default function AttachmentPicker({
   attachments,
   setAttachments,
-  description,
-  setDescription,
   required,
 }: {
   attachments: AttachmentDraft[];
   setAttachments: (v: AttachmentDraft[]) => void;
-  description: string;
-  setDescription: (v: string) => void;
   required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,22 +78,89 @@ export default function AttachmentPicker({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
 
+  // Naming queue: photos selected in a batch are held here, unnamed, and named one at
+  // a time (or via "apply to remaining") before they ever land in `attachments`. This
+  // way an attachment can never exist without a real, user-entered name — no separate
+  // "required" check needed at submit time.
+  const [queueFiles, setQueueFiles] = useState<File[] | null>(null);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [queueName, setQueueName] = useState("");
+  const [applyToAll, setApplyToAll] = useState(false);
+
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
     setCompressing(true);
     try {
       const compressed = await Promise.all(Array.from(files).map(compressImage));
-      const additions: AttachmentDraft[] = compressed.map((file) => ({
-        id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
-        file,
-        description: description || file.name,
-        previewUrl: URL.createObjectURL(file),
-      }));
-      setAttachments([...attachments, ...additions]);
-      setDescription("");
+      setQueueFiles(compressed);
+      setQueueIndex(0);
+      setQueueName("");
+      setApplyToAll(false);
       if (inputRef.current) inputRef.current.value = "";
     } finally {
       setCompressing(false);
+    }
+  }
+
+  function finishQueue() {
+    setQueueFiles(null);
+    setQueueIndex(0);
+    setQueueName("");
+    setApplyToAll(false);
+  }
+
+  function cancelQueue() {
+    finishQueue();
+  }
+
+  function confirmQueueStep() {
+    if (!queueFiles || !queueName.trim()) return;
+    const base = queueName.trim();
+
+    if (applyToAll) {
+      // Name the current photo plus every remaining one in this batch, auto-numbered
+      // against every name already in use — both earlier photos in this batch and any
+      // attachment already added before this batch started.
+      const remaining = queueFiles.slice(queueIndex);
+      const takenNames = attachments.map((a) => a.description);
+      const additions: AttachmentDraft[] = remaining.map((file) => {
+        const name = nextAvailableName(base, takenNames);
+        takenNames.push(name);
+        return {
+          id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
+          file,
+          description: name,
+          previewUrl: URL.createObjectURL(file),
+          named: true,
+        };
+      });
+      setAttachments([...attachments, ...additions]);
+      finishQueue();
+      return;
+    }
+
+    // Manual, one photo at a time: if this name matches one already used (typed the
+    // same thing twice, e.g. "Receipt" then "Receipt" again), auto-suffix it —
+    // "Receipt" stays as is, the next "Receipt" becomes "Receipt 2", and so on.
+    const name = nextAvailableName(
+      base,
+      attachments.map((a) => a.description)
+    );
+    const file = queueFiles[queueIndex];
+    const addition: AttachmentDraft = {
+      id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
+      file,
+      description: name,
+      previewUrl: URL.createObjectURL(file),
+      named: true,
+    };
+    setAttachments([...attachments, addition]);
+
+    if (queueIndex + 1 < queueFiles.length) {
+      setQueueIndex(queueIndex + 1);
+      setQueueName("");
+    } else {
+      finishQueue();
     }
   }
 
@@ -91,17 +173,22 @@ export default function AttachmentPicker({
     setEditingValue(a.description);
   }
 
-  // Renaming is optional — an empty save just falls back to the original file name,
-  // it never blocks or requires a value.
   function saveEditing(id: string) {
-    setAttachments(
-      attachments.map((a) =>
-        a.id === id ? { ...a, description: editingValue.trim() || a.file.name } : a
-      )
-    );
+    const trimmed = editingValue.trim();
+    if (!trimmed) return; // renaming stays required — blank input just keeps editing open
+    const otherNames = attachments.filter((a) => a.id !== id).map((a) => a.description);
+    const name = nextAvailableName(trimmed, otherNames);
+    setAttachments(attachments.map((a) => (a.id === id ? { ...a, description: name } : a)));
     setEditingId(null);
     setEditingValue("");
   }
+
+  const queueTotal = queueFiles?.length ?? 0;
+  const remainingCount = queueTotal - queueIndex;
+  const queuePreviewUrl = useMemo(
+    () => (queueFiles ? URL.createObjectURL(queueFiles[queueIndex]) : null),
+    [queueFiles, queueIndex]
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -109,15 +196,6 @@ export default function AttachmentPicker({
         Attachment{required ? " *" : ""}
       </span>
       <p className="-mt-1.5 text-xs text-slate-400">Photos only — converted to PDF automatically.</p>
-      <textarea
-        id="attachmentDescription"
-        name="attachmentDescription"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Description"
-        rows={2}
-        className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-      />
       <input
         ref={inputRef}
         id="attachmentFiles"
@@ -173,9 +251,12 @@ export default function AttachmentPicker({
                       onChange={(e) => setEditingValue(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") saveEditing(a.id);
-                        if (e.key === "Escape") setEditingId(null);
+                        if (e.key === "Escape") {
+                          setEditingId(null);
+                          setEditingValue("");
+                        }
                       }}
-                      placeholder={a.file.name}
+                      placeholder="Enter a name"
                       className="min-w-0 flex-1 rounded-md border border-brand/40 px-2 py-1 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                     />
                     <button
@@ -214,6 +295,61 @@ export default function AttachmentPicker({
           ))}
         </ul>
       )}
+
+      <Modal open={queueFiles !== null} onClose={cancelQueue} title="Name this photo">
+        {queueFiles && (
+          <div className="flex flex-col gap-4">
+            <p className="text-xs font-medium text-slate-400">
+              Photo {queueIndex + 1} of {queueTotal}
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={queuePreviewUrl ?? undefined}
+              alt="Preview"
+              className="h-40 w-full rounded-lg object-contain bg-slate-100"
+            />
+            <input
+              autoFocus
+              value={queueName}
+              onChange={(e) => setQueueName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmQueueStep();
+              }}
+              placeholder="e.g. Sales Invoice"
+              className="rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
+            {remainingCount > 1 && (
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={applyToAll}
+                  onChange={(e) => setApplyToAll(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-slate-300"
+                />
+                Use this name for all {remainingCount} remaining photos (auto-numbered)
+              </label>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={cancelQueue}
+                className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmQueueStep}
+                disabled={!queueName.trim()}
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {applyToAll || queueIndex + 1 >= queueTotal ? "Done" : "Next"}
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

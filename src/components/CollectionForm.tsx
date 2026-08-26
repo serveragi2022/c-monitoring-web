@@ -54,7 +54,6 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
   const [othersTotalAmount, setOthersTotalAmount] = useState("");
   const [withItemReturn, setWithItemReturn] = useState(false);
   const [remarks, setRemarks] = useState("");
-  const [attachmentDescription, setAttachmentDescription] = useState("");
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
 
   const [errors, setErrors] = useState<Errors>({});
@@ -217,7 +216,6 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
     setOthersTotalAmount("");
     setWithItemReturn(false);
     setRemarks("");
-    setAttachmentDescription("");
     setAttachments([]);
     setErrors({});
   }
@@ -657,8 +655,6 @@ export default function CollectionForm({ typeRoute }: { typeRoute: string }) {
         <AttachmentPicker
           attachments={attachments}
           setAttachments={setAttachments}
-          description={attachmentDescription}
-          setDescription={setAttachmentDescription}
           required={requiresAttachment}
         />
         {errors.attachments && <p className="-mt-3 text-xs text-red-600">{errors.attachments}</p>}
