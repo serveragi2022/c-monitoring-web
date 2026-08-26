@@ -154,7 +154,13 @@ export async function POST(req: NextRequest) {
         const description = descriptions[i] || file.name;
         const inputBuffer = Buffer.from(await file.arrayBuffer());
         const pdfBuffer = await convertImageToPdf(inputBuffer);
-        const safeName = description.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "attachment";
+        // Encode the name BEFORE attaching/uploading: strip to a safe slug, then prefix
+        // with this file's index within the submission. The index makes every filename
+        // unique even when two attachments share the exact same description (e.g. two
+        // photos both left as "attachment" or both typed the same) — without it, the
+        // second upload silently overwrote the first at the same GCS path.
+        const slug = description.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "attachment";
+        const safeName = `${i + 1}-${slug}`;
         await uploadAttachmentToGCS(pdfBuffer, `${safeName}.pdf`, "application/pdf", attachmentGuid);
       })
     );

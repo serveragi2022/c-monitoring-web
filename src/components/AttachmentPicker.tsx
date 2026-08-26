@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Paperclip, X, FileImage, Loader2 } from "lucide-react";
+import { Paperclip, X, FileImage, Loader2, Pencil, Check } from "lucide-react";
 
 export interface AttachmentDraft {
   id: string;
@@ -60,6 +60,8 @@ export default function AttachmentPicker({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [compressing, setCompressing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   async function onFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -84,6 +86,23 @@ export default function AttachmentPicker({
     setAttachments(attachments.filter((a) => a.id !== id));
   }
 
+  function startEditing(a: AttachmentDraft) {
+    setEditingId(a.id);
+    setEditingValue(a.description);
+  }
+
+  // Renaming is optional — an empty save just falls back to the original file name,
+  // it never blocks or requires a value.
+  function saveEditing(id: string) {
+    setAttachments(
+      attachments.map((a) =>
+        a.id === id ? { ...a, description: editingValue.trim() || a.file.name } : a
+      )
+    );
+    setEditingId(null);
+    setEditingValue("");
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-slate-700">
@@ -106,7 +125,6 @@ export default function AttachmentPicker({
         type="file"
         accept="image/*"
         multiple
-        capture="environment"
         className="hidden"
         onChange={(e) => onFilesSelected(e.target.files)}
       />
@@ -147,7 +165,41 @@ export default function AttachmentPicker({
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-slate-700">{a.description}</p>
+                {editingId === a.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEditing(a.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      placeholder={a.file.name}
+                      className="min-w-0 flex-1 rounded-md border border-brand/40 px-2 py-1 text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveEditing(a.id)}
+                      className="shrink-0 rounded-md p-1 text-brand hover:bg-brand/10"
+                      aria-label="Save name"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-xs font-medium text-slate-700">{a.description}</p>
+                    <button
+                      type="button"
+                      onClick={() => startEditing(a)}
+                      className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                      aria-label="Rename"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
                 <p className="truncate text-[11px] text-slate-400">{a.file.name}</p>
               </div>
               <button
